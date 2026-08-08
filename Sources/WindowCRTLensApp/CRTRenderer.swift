@@ -191,7 +191,7 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
             u.shellCornerRadius
         );
         float outerAA = max(fwidth(outerDistance), u.edgeSoftness);
-        float outerCoverage = 1.0 - smoothstep(-outerAA, outerAA, outerDistance);
+        float outerCoverage = 1.0 - smoothstep(0.0, outerAA, outerDistance);
 
         float2 lensPosition = in.uv * 2.0 - 1.0;
         float radius2 = dot(lensPosition, lensPosition);
@@ -243,7 +243,8 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         float breathingNoise = 1.0 + 0.002 * sin(u.time * 1.7 + uv.y * 19.0);
         color *= breathingNoise;
         color = mix(shellColor, saturate(color), screenCoverage);
-        return float4(color, outerCoverage);
+        color = mix(float3(0.006, 0.007, 0.01), color, outerCoverage);
+        return float4(color, 1.0);
     }
     """
 }
