@@ -8,8 +8,9 @@ An isolated macOS experiment that tracks one user-selected window, captures its 
 - Capturing the composited region preserves what is visible behind translucent source windows instead of replacing transparency with a flat fill.
 - `◉` > `CRT appearance…` opens live controls for source zoom, captured screen radius, outer lens radius, and anti-aliased edge softness. Values persist between launches.
 - CRT zoom enlarges only the sampled application image; it does not resize the real window or stretch the outer lens shell.
-- `◉` > `Look` includes seven deliberately different profiles: the original Subtle, Glassy, and Bulbous looks plus Deep Consumer Tube, Rooftop Arcade, PVM Aperture Grille, and Amber Terminal.
+- `◉` > `Look` includes seven deliberately different profiles: the original Subtle, Glassy, and Bulbous looks plus Deep Consumer Tube, Rooftop Arcade, PVM Aperture Grille, and Neutral Terminal.
 - The newer profiles add axis-aware cubic tube geometry, aperture-grille/shadow-mask/slot-mask phosphors, brightness recovery, configurable glass response, and an optional four-tap halation pass. Profiles without halation retain the original three texture taps; profiles with it use seven.
+- Scanlines and phosphor masks remain fixed to the simulated glass instead of moving with source zoom or curvature. The original profiles use a two-pixel phosphor pitch to reduce display-scale moiré while retaining visible CRT texture.
 - The screen mask replaces desktop pixels exposed by macOS window corners with the CRT shell before the image is curved.
 - The lens is only shown while the selected application's window is in the foreground, so it does not follow the user into unrelated Spaces or applications.
 - Native macOS fullscreen is supported: the passive overlay can follow the selected app into its fullscreen Space, and it stays hidden during fullscreen/resize geometry transitions until ScreenCaptureKit catches up.

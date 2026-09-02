@@ -26,12 +26,25 @@ final class ShaderEdgeCoverageTests: XCTestCase {
         XCTAssertTrue(rendererSource.contains("u.maskStyle"))
     }
 
-    func testOriginalProfilesRetainTheirWarpedLegacyMask() throws {
+    func testDisplayGridStaysFixedWhileTheSourceImageWarpsAndZooms() throws {
+        let rendererSource = try rendererSource()
+
+        XCTAssertTrue(rendererSource.contains("float2 displayPixel = in.uv * u.outputSize;"))
+        XCTAssertTrue(rendererSource.contains("sin(displayPixel.y * 3.14159265)"))
+        XCTAssertTrue(rendererSource.contains("phosphor_mask(displayPixel, u.maskPitch, u.maskStyle)"))
+        XCTAssertFalse(rendererSource.contains("float2 maskUV = u.maskStyle < -0.5 ? uv : in.uv;"))
+    }
+
+    func testLegacyPhosphorMaskHonorsItsConfiguredPitch() throws {
         let rendererSource = try rendererSource()
 
         XCTAssertTrue(rendererSource.contains("if (maskStyle < -0.5)"))
         XCTAssertTrue(rendererSource.contains("float3(1.0, 0.84, 0.84)"))
-        XCTAssertTrue(rendererSource.contains("float2 maskUV = u.maskStyle < -0.5 ? uv : in.uv;"))
+        XCTAssertTrue(
+            rendererSource.contains(
+                "floor(pixelPosition.x / max(pitch, 1.0))"
+            )
+        )
     }
 
     func testHalationRemainsAConditionalBoundedCostEffect() throws {

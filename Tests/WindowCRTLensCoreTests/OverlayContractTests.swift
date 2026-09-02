@@ -102,7 +102,12 @@ final class OverlayContractTests: XCTestCase {
         XCTAssertEqual(LensPreset.apertureGrille.maskStyle, .apertureGrille)
 
         XCTAssertEqual(LensPreset.amberTerminal.maskStyle, .monochrome)
-        XCTAssertEqual(LensPreset.amberTerminal.monochromeMix, 1)
+    }
+
+    func testNeutralTerminalProfilePreservesSourceColor() {
+        XCTAssertEqual(LensPreset.amberTerminal.displayName, "Neutral Terminal")
+        XCTAssertEqual(LensPreset.amberTerminal.phosphorTint, SIMD3(repeating: 1))
+        XCTAssertEqual(LensPreset.amberTerminal.monochromeMix, 0)
     }
 
     func testOriginalProfilesKeepTheirEstablishedGeometryAndStrengths() {
@@ -115,6 +120,12 @@ final class OverlayContractTests: XCTestCase {
         XCTAssertEqual(LensPreset.subtle.scanlineStrength, 0.16)
         XCTAssertEqual(LensPreset.glassy.maskStrength, 0.08)
         XCTAssertEqual(LensPreset.bulbous.glowStrength, 0.16)
+    }
+
+    func testOriginalProfilesUseAStableMultiPixelPhosphorPitch() {
+        XCTAssertEqual(LensPreset.subtle.maskPitch, 2)
+        XCTAssertEqual(LensPreset.glassy.maskPitch, 2)
+        XCTAssertEqual(LensPreset.bulbous.maskPitch, 2)
     }
 
     func testLensStaysVisibleForItsTargetOrItsOwnAppearancePanel() {

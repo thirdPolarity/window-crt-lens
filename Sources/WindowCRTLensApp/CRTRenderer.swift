@@ -194,7 +194,7 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
 
     float3 phosphor_mask(float2 pixelPosition, float pitch, float maskStyle) {
         if (maskStyle < -0.5) {
-            float phase = fmod(floor(pixelPosition.x), 3.0);
+            float phase = fmod(floor(pixelPosition.x / max(pitch, 1.0)), 3.0);
             return phase < 1.0 ? float3(1.0, 0.84, 0.84)
                  : phase < 2.0 ? float3(0.84, 1.0, 0.84)
                                : float3(0.84, 0.84, 1.0);
@@ -300,11 +300,15 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         float3 monochromeColor = luminanceBeforeTint * u.tintAndMonochrome.rgb;
         color = mix(tintedColor, monochromeColor, u.tintAndMonochrome.a);
 
-        float scan = 0.5 + 0.5 * sin(uv.y * u.outputSize.y * 3.14159265);
+        // The electron-beam and phosphor structure belong to the physical glass,
+        // not to the captured image. Keeping this grid in output-pixel space
+        // prevents curvature and source zoom from sliding or compressing it into
+        // unstable subpixel frequencies.
+        float2 displayPixel = in.uv * u.outputSize;
+        float scan = 0.5 + 0.5 * sin(displayPixel.y * 3.14159265);
         color *= 1.0 - u.scanlineStrength * (1.0 - scan);
 
-        float2 maskUV = u.maskStyle < -0.5 ? uv : in.uv;
-        float3 mask = phosphor_mask(maskUV * u.outputSize, u.maskPitch, u.maskStyle);
+        float3 mask = phosphor_mask(displayPixel, u.maskPitch, u.maskStyle);
         color *= mix(float3(1.0), mask, u.maskStrength);
 
         float luminance = dot(color, float3(0.2126, 0.7152, 0.0722));

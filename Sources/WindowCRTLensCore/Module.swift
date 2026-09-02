@@ -191,7 +191,7 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
         case .deepTube: "Deep Consumer Tube"
         case .rooftopArcade: "Rooftop Arcade"
         case .apertureGrille: "PVM Aperture Grille"
-        case .amberTerminal: "Amber Terminal"
+        case .amberTerminal: "Neutral Terminal"
         }
     }
 
@@ -204,7 +204,7 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
                 scanlineStrength: 0.16,
                 maskStrength: 0.035,
                 maskStyle: .legacyApertureGrille,
-                maskPitch: 1,
+                maskPitch: 2,
                 glowStrength: 0.06,
                 halationStrength: 0,
                 halationRadius: 1,
@@ -221,7 +221,7 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
                 scanlineStrength: 0.24,
                 maskStrength: 0.08,
                 maskStyle: .legacyApertureGrille,
-                maskPitch: 1,
+                maskPitch: 2,
                 glowStrength: 0.12,
                 halationStrength: 0,
                 halationRadius: 1,
@@ -238,7 +238,7 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
                 scanlineStrength: 0.28,
                 maskStrength: 0.10,
                 maskStyle: .legacyApertureGrille,
-                maskPitch: 1,
+                maskPitch: 2,
                 glowStrength: 0.16,
                 halationStrength: 0,
                 halationRadius: 1,
@@ -313,8 +313,8 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
                 vignetteStrength: 0.30,
                 glassStrength: 0.68,
                 brightness: 1.08,
-                phosphorTint: SIMD3(1, 0.56, 0.14),
-                monochromeMix: 1
+                phosphorTint: SIMD3(repeating: 1),
+                monochromeMix: 0
             )
         }
     }
