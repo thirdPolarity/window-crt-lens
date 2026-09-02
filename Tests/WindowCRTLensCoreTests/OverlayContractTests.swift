@@ -22,9 +22,10 @@ final class OverlayContractTests: XCTestCase {
         XCTAssertFalse(window.hasShadow)
         XCTAssertEqual(window.level, .floating)
         XCTAssertTrue(window.collectionBehavior.contains(.managed))
+        XCTAssertTrue(window.collectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertFalse(window.collectionBehavior.contains(.canJoinAllApplications))
         XCTAssertTrue(window.collectionBehavior.contains(.fullScreenAuxiliary))
         XCTAssertTrue(window.collectionBehavior.contains(.ignoresCycle))
-        XCTAssertFalse(window.collectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertFalse(window.collectionBehavior.contains(.stationary))
     }
 
@@ -37,6 +38,24 @@ final class OverlayContractTests: XCTestCase {
         )
 
         XCTAssertEqual(appKitFrame, NSRect(x: 120, y: 1_120, width: 800, height: 600))
+    }
+
+    func testOverlayWaitsForCaptureGeometryDuringFullscreenTransition() {
+        let windowed = CGRect(x: 120, y: 80, width: 800, height: 600)
+        let fullscreen = CGRect(x: 0, y: 43, width: 2_056, height: 1_286)
+
+        XCTAssertTrue(
+            LensGeometryTransitionPolicy.isReady(
+                captureFrame: windowed,
+                targetFrame: windowed
+            )
+        )
+        XCTAssertFalse(
+            LensGeometryTransitionPolicy.isReady(
+                captureFrame: windowed,
+                targetFrame: fullscreen
+            )
+        )
     }
 
     func testLensPresetsStayWithinSafeRealtimeRanges() {

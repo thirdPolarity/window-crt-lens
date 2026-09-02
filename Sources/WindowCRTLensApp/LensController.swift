@@ -22,6 +22,7 @@ final class LensController {
     private var trackingTimer: Timer?
     private var captureUpdateTask: Task<Void, Never>?
     private var lastQuartzFrame: CGRect
+    private var captureGeometryFrame: CGRect
 
     init(window: SCWindow, preset: LensPreset, appearance: LensAppearance) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -30,6 +31,7 @@ final class LensController {
         self.targetWindowID = window.windowID
         self.targetProcessID = window.owningApplication?.processID
         self.lastQuartzFrame = window.frame
+        self.captureGeometryFrame = window.frame
         self.preset = preset
         self.appearance = appearance
 
@@ -120,11 +122,27 @@ final class LensController {
             overlayWindow.setFrame(appKitFrame, display: false)
             metalView.frame = NSRect(origin: .zero, size: appKitFrame.size)
             captureUpdateTask?.cancel()
-            captureUpdateTask = Task { [weak captureService] in
-                try? await Task.sleep(for: .milliseconds(120))
-                guard !Task.isCancelled else { return }
-                try? await captureService?.update(windowFrame: quartzFrame)
+            captureUpdateTask = Task { [weak self] in
+                do {
+                    try await Task.sleep(for: .milliseconds(120))
+                    guard !Task.isCancelled, let self else { return }
+                    try await captureService.update(windowFrame: quartzFrame)
+                    captureGeometryFrame = quartzFrame
+                    trackTargetWindow()
+                } catch is CancellationError {
+                    return
+                } catch {
+                    NSLog("[Window CRT Lens] capture geometry update failed: %@", error.localizedDescription)
+                }
             }
+        }
+
+        guard LensGeometryTransitionPolicy.isReady(
+            captureFrame: captureGeometryFrame,
+            targetFrame: quartzFrame
+        ) else {
+            overlayWindow.orderOut(nil)
+            return
         }
         overlayWindow.orderFrontRegardless()
     }

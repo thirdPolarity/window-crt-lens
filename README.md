@@ -12,6 +12,7 @@ An isolated macOS experiment that tracks one user-selected window, captures its 
 - The newer profiles add axis-aware cubic tube geometry, aperture-grille/shadow-mask/slot-mask phosphors, brightness recovery, configurable glass response, and an optional four-tap halation pass. Profiles without halation retain the original three texture taps; profiles with it use seven.
 - The screen mask replaces desktop pixels exposed by macOS window corners with the CRT shell before the image is curved.
 - The lens is only shown while the selected application's window is in the foreground, so it does not follow the user into unrelated Spaces or applications.
+- Native macOS fullscreen is supported: the passive overlay can follow the selected app into its fullscreen Space, and it stays hidden during fullscreen/resize geometry transitions until ScreenCaptureKit catches up.
 - It does not load or modify RetroArch, ES-DE, Dock, Finder, wallpaper, login items, audio, or camera settings.
 - It does not record, stream, or save captured frames.
 

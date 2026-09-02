@@ -103,7 +103,12 @@ public enum OverlayContract {
         window.backgroundColor = .clear
         window.hasShadow = false
         window.level = overlayLevel
-        window.collectionBehavior = [.managed, .fullScreenAuxiliary, .ignoresCycle]
+        window.collectionBehavior = [
+            .managed,
+            .canJoinAllSpaces,
+            .fullScreenAuxiliary,
+            .ignoresCycle,
+        ]
     }
 }
 
@@ -128,6 +133,12 @@ public enum LensVisibilityPolicy {
         frontmostProcessID: pid_t?
     ) -> Bool {
         frontmostProcessID == targetProcessID || frontmostProcessID == ownProcessID
+    }
+}
+
+public enum LensGeometryTransitionPolicy {
+    public static func isReady(captureFrame: CGRect, targetFrame: CGRect) -> Bool {
+        captureFrame == targetFrame
     }
 }
 
