@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class ShaderEdgeCoverageTests: XCTestCase {
-    func testOuterMaskKeepsTheViewportBoundaryOpaque() throws {
+    private func rendererSource() throws -> String {
         let repositoryRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -11,7 +11,39 @@ final class ShaderEdgeCoverageTests: XCTestCase {
             .appendingPathComponent("Sources")
             .appendingPathComponent("WindowCRTLensApp")
             .appendingPathComponent("CRTRenderer.swift")
-        let rendererSource = try String(contentsOf: rendererURL, encoding: .utf8)
+        return try String(contentsOf: rendererURL, encoding: .utf8)
+    }
+
+    func testShaderSupportsAxisCubicGlassAndMultiplePhosphorMasks() throws {
+        let rendererSource = try rendererSource()
+
+        XCTAssertTrue(
+            rendererSource.contains(
+                "float2 axisCurve = lensPosition * (1.0 + u.curvature * lensPosition.yx * lensPosition.yx);"
+            )
+        )
+        XCTAssertTrue(rendererSource.contains("float3 phosphor_mask("))
+        XCTAssertTrue(rendererSource.contains("u.maskStyle"))
+    }
+
+    func testOriginalProfilesRetainTheirWarpedLegacyMask() throws {
+        let rendererSource = try rendererSource()
+
+        XCTAssertTrue(rendererSource.contains("if (maskStyle < -0.5)"))
+        XCTAssertTrue(rendererSource.contains("float3(1.0, 0.84, 0.84)"))
+        XCTAssertTrue(rendererSource.contains("float2 maskUV = u.maskStyle < -0.5 ? uv : in.uv;"))
+    }
+
+    func testHalationRemainsAConditionalBoundedCostEffect() throws {
+        let rendererSource = try rendererSource()
+        let sampleCount = rendererSource.components(separatedBy: "source.sample").count - 1
+
+        XCTAssertTrue(rendererSource.contains("if (u.halationStrength > 0.0001)"))
+        XCTAssertLessThanOrEqual(sampleCount, 8, "Keep the real-time lens at eight texture taps or fewer.")
+    }
+
+    func testOuterMaskKeepsTheViewportBoundaryOpaque() throws {
+        let rendererSource = try rendererSource()
 
         XCTAssertTrue(
             rendererSource.contains(
@@ -28,15 +60,7 @@ final class ShaderEdgeCoverageTests: XCTestCase {
     }
 
     func testRoundedCornersCompositeOverAnOpaqueCRTMatte() throws {
-        let repositoryRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let rendererURL = repositoryRoot
-            .appendingPathComponent("Sources")
-            .appendingPathComponent("WindowCRTLensApp")
-            .appendingPathComponent("CRTRenderer.swift")
-        let rendererSource = try String(contentsOf: rendererURL, encoding: .utf8)
+        let rendererSource = try rendererSource()
 
         XCTAssertTrue(
             rendererSource.contains(

@@ -32,7 +32,9 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     static func listEligibleWindows() async throws -> [SCWindow] {
-        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        // Query every Space. Restricting this snapshot to the current Space makes a
+        // valid target disappear whenever opening the menu changes macOS focus.
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
         let ownPID = ProcessInfo.processInfo.processIdentifier
 
         return content.windows.filter { window in
@@ -48,10 +50,18 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
             )
             return WindowCandidatePolicy.isEligible(candidate, excludingPID: ownPID)
         }.sorted {
+            if $0.isOnScreen != $1.isOnScreen {
+                return $0.isOnScreen
+            }
             let left = "\($0.owningApplication?.applicationName ?? "") \($0.title ?? "")"
             let right = "\($1.owningApplication?.applicationName ?? "") \($1.title ?? "")"
             return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
         }
+    }
+
+    static func onScreenWindow(windowID: CGWindowID) async throws -> SCWindow? {
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        return content.windows.first(where: { $0.windowID == windowID })
     }
 
     func start(windowID: CGWindowID, targetFPS: Int = 60) async throws {
@@ -269,11 +279,15 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
     enum CaptureError: LocalizedError {
         case windowDisappeared
         case displayUnavailable
+        case activationFailed
+        case windowDidNotBecomeVisible
 
         var errorDescription: String? {
             switch self {
             case .windowDisappeared: "The selected window is no longer available."
             case .displayUnavailable: "The display containing the selected window is unavailable."
+            case .activationFailed: "macOS could not bring the selected application forward."
+            case .windowDidNotBecomeVisible: "The selected window did not become visible. Restore it from the Dock and choose it again."
             }
         }
     }

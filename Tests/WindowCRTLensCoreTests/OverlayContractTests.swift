@@ -40,15 +40,62 @@ final class OverlayContractTests: XCTestCase {
     }
 
     func testLensPresetsStayWithinSafeRealtimeRanges() {
-        XCTAssertEqual(LensPreset.allCases.map(\.id), ["subtle", "glassy", "bulbous"])
+        XCTAssertEqual(
+            LensPreset.allCases.map(\.id),
+            [
+                "subtle",
+                "glassy",
+                "bulbous",
+                "deepTube",
+                "rooftopArcade",
+                "apertureGrille",
+                "amberTerminal",
+            ]
+        )
 
         for preset in LensPreset.allCases {
-            XCTAssertTrue((0...0.14).contains(preset.curvature))
+            XCTAssertTrue((0...0.24).contains(preset.curvatureX))
+            XCTAssertTrue((0...0.24).contains(preset.curvatureY))
             XCTAssertTrue((0...0.45).contains(preset.scanlineStrength))
-            XCTAssertTrue((0...0.25).contains(preset.maskStrength))
+            XCTAssertTrue((0...0.55).contains(preset.maskStrength))
+            XCTAssertTrue((1...8).contains(preset.maskPitch))
             XCTAssertTrue((0...0.35).contains(preset.glowStrength))
-            XCTAssertTrue((0...0.55).contains(preset.vignetteStrength))
+            XCTAssertTrue((0...0.18).contains(preset.halationStrength))
+            XCTAssertTrue((0...4).contains(preset.halationRadius))
+            XCTAssertTrue((0...0.65).contains(preset.vignetteStrength))
+            XCTAssertTrue((0...1).contains(preset.glassStrength))
+            XCTAssertTrue((0.85...1.35).contains(preset.brightness))
+            XCTAssertTrue((0...1).contains(preset.monochromeMix))
+            XCTAssertTrue(preset.phosphorTint.x > 0)
+            XCTAssertTrue(preset.phosphorTint.y > 0)
+            XCTAssertTrue(preset.phosphorTint.z > 0)
         }
+    }
+
+    func testNewProfilesRepresentDistinctTubeTechnologies() {
+        XCTAssertEqual(LensPreset.deepTube.warpStyle, .axisCubic)
+        XCTAssertEqual(LensPreset.deepTube.maskStyle, .slotMask)
+
+        XCTAssertEqual(LensPreset.rooftopArcade.warpStyle, .axisCubic)
+        XCTAssertEqual(LensPreset.rooftopArcade.maskStyle, .shadowMask)
+
+        XCTAssertEqual(LensPreset.apertureGrille.warpStyle, .radial)
+        XCTAssertEqual(LensPreset.apertureGrille.maskStyle, .apertureGrille)
+
+        XCTAssertEqual(LensPreset.amberTerminal.maskStyle, .monochrome)
+        XCTAssertEqual(LensPreset.amberTerminal.monochromeMix, 1)
+    }
+
+    func testOriginalProfilesKeepTheirEstablishedGeometryAndStrengths() {
+        XCTAssertEqual(LensPreset.subtle.curvatureX, 0.018)
+        XCTAssertEqual(LensPreset.glassy.curvatureX, 0.055)
+        XCTAssertEqual(LensPreset.bulbous.curvatureX, 0.11)
+        XCTAssertEqual(LensPreset.subtle.maskStyle, .legacyApertureGrille)
+        XCTAssertEqual(LensPreset.glassy.maskStyle, .legacyApertureGrille)
+        XCTAssertEqual(LensPreset.bulbous.maskStyle, .legacyApertureGrille)
+        XCTAssertEqual(LensPreset.subtle.scanlineStrength, 0.16)
+        XCTAssertEqual(LensPreset.glassy.maskStrength, 0.08)
+        XCTAssertEqual(LensPreset.bulbous.glowStrength, 0.16)
     }
 
     func testLensStaysVisibleForItsTargetOrItsOwnAppearancePanel() {

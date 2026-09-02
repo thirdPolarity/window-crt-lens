@@ -121,7 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for window in windows {
             let app = window.owningApplication?.applicationName ?? "Application"
             let title = (window.title?.isEmpty == false) ? window.title! : "Untitled window"
-            popup.addItem(withTitle: "\(app) — \(title)")
+            let visibility = window.isOnScreen ? "" : " — another Space or minimized"
+            popup.addItem(withTitle: "\(app) — \(title)\(visibility)")
         }
 
         let alert = NSAlert()
@@ -140,25 +141,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startLens(for window: SCWindow) async {
         lensController?.stop()
         do {
+            let readyWindow = try await activateAndResolve(window)
+
             let controller = try LensController(
-                window: window,
+                window: readyWindow,
                 preset: selectedPreset,
                 appearance: appearance
             )
             try await controller.start()
             lensController = controller
-            let app = window.owningApplication?.applicationName ?? "Application"
-            let title = (window.title?.isEmpty == false) ? window.title! : "Untitled window"
+            let app = readyWindow.owningApplication?.applicationName ?? "Application"
+            let title = (readyWindow.title?.isEmpty == false) ? readyWindow.title! : "Untitled window"
             targetItem.title = "Lens: \(app) — \(title)"
             stopItem.isEnabled = true
 
-            if let pid = window.owningApplication?.processID,
-               let application = NSRunningApplication(processIdentifier: pid) {
-                application.activate()
-            }
         } catch {
             presentMessage(title: "The lens could not start", message: error.localizedDescription)
         }
+    }
+
+    private func activateAndResolve(_ window: SCWindow) async throws -> SCWindow {
+        guard let pid = window.owningApplication?.processID,
+              let application = NSRunningApplication(processIdentifier: pid),
+              application.activate(options: [.activateAllWindows]) else {
+            throw CaptureService.CaptureError.activationFailed
+        }
+
+        for attempt in 0..<20 {
+            if attempt > 0 {
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            if let visibleWindow = try await CaptureService.onScreenWindow(windowID: window.windowID),
+               WindowSelectionReadiness.isReady(
+                   isOnScreen: visibleWindow.isOnScreen,
+                   targetProcessID: pid,
+                   frontmostProcessID: NSWorkspace.shared.frontmostApplication?.processIdentifier
+               ) {
+                return visibleWindow
+            }
+        }
+
+        throw CaptureService.CaptureError.windowDidNotBecomeVisible
     }
 
     @objc private func selectPreset(_ sender: NSMenuItem) {

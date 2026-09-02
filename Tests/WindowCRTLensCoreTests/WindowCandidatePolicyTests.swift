@@ -47,4 +47,56 @@ final class WindowCandidatePolicyTests: XCTestCase {
 
         XCTAssertEqual(eligible, [valid])
     }
+
+    func testTitledWindowOnAnotherSpaceRemainsEligible() {
+        let otherSpaceWindow = WindowCandidate(
+            windowID: 11,
+            ownerPID: 500,
+            appName: "CRT Lens Profile Fixture",
+            bundleIdentifier: "com.rey.crt-lens-fixture",
+            title: "CRT Lens Profile Fixture",
+            frame: CGRect(x: 40, y: 40, width: 1_200, height: 788),
+            isOnScreen: false
+        )
+
+        XCTAssertTrue(WindowCandidatePolicy.isEligible(otherSpaceWindow, excludingPID: 100))
+    }
+
+    func testUntitledOffscreenWindowIsRejectedAsStale() {
+        let staleWindow = WindowCandidate(
+            windowID: 12,
+            ownerPID: 500,
+            appName: "Helper",
+            bundleIdentifier: "com.example.helper",
+            title: "   ",
+            frame: CGRect(x: 40, y: 40, width: 1_200, height: 788),
+            isOnScreen: false
+        )
+
+        XCTAssertFalse(WindowCandidatePolicy.isEligible(staleWindow, excludingPID: 100))
+    }
+
+    func testSelectedWindowIsReadyOnlyWhenVisibleAndItsAppIsFrontmost() {
+        XCTAssertTrue(
+            WindowSelectionReadiness.isReady(
+                isOnScreen: true,
+                targetProcessID: 500,
+                frontmostProcessID: 500
+            )
+        )
+        XCTAssertFalse(
+            WindowSelectionReadiness.isReady(
+                isOnScreen: false,
+                targetProcessID: 500,
+                frontmostProcessID: 500
+            )
+        )
+        XCTAssertFalse(
+            WindowSelectionReadiness.isReady(
+                isOnScreen: true,
+                targetProcessID: 500,
+                frontmostProcessID: 600
+            )
+        )
+    }
 }

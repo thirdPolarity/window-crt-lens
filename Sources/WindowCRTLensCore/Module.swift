@@ -131,10 +131,44 @@ public enum LensVisibilityPolicy {
     }
 }
 
+public enum LensWarpStyle: Float, Sendable {
+    case radial = 0
+    case axisCubic = 1
+}
+
+public enum PhosphorMaskStyle: Float, Sendable {
+    case legacyApertureGrille = -1
+    case apertureGrille = 0
+    case shadowMask = 1
+    case slotMask = 2
+    case monochrome = 3
+}
+
+public struct LensPresetProfile: Equatable, Sendable {
+    public let curvature: SIMD2<Float>
+    public let warpStyle: LensWarpStyle
+    public let scanlineStrength: Float
+    public let maskStrength: Float
+    public let maskStyle: PhosphorMaskStyle
+    public let maskPitch: Float
+    public let glowStrength: Float
+    public let halationStrength: Float
+    public let halationRadius: Float
+    public let vignetteStrength: Float
+    public let glassStrength: Float
+    public let brightness: Float
+    public let phosphorTint: SIMD3<Float>
+    public let monochromeMix: Float
+}
+
 public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
     case subtle
     case glassy
     case bulbous
+    case deepTube
+    case rooftopArcade
+    case apertureGrille
+    case amberTerminal
 
     public var id: String { rawValue }
 
@@ -143,48 +177,152 @@ public enum LensPreset: String, CaseIterable, Identifiable, Sendable {
         case .subtle: "Subtle Terminal"
         case .glassy: "Glassy CRT"
         case .bulbous: "Bulbous Glass"
+        case .deepTube: "Deep Consumer Tube"
+        case .rooftopArcade: "Rooftop Arcade"
+        case .apertureGrille: "PVM Aperture Grille"
+        case .amberTerminal: "Amber Terminal"
         }
     }
 
-    public var curvature: Float {
+    public var profile: LensPresetProfile {
         switch self {
-        case .subtle: 0.018
-        case .glassy: 0.055
-        case .bulbous: 0.11
+        case .subtle:
+            LensPresetProfile(
+                curvature: SIMD2(repeating: 0.018),
+                warpStyle: .radial,
+                scanlineStrength: 0.16,
+                maskStrength: 0.035,
+                maskStyle: .legacyApertureGrille,
+                maskPitch: 1,
+                glowStrength: 0.06,
+                halationStrength: 0,
+                halationRadius: 1,
+                vignetteStrength: 0.12,
+                glassStrength: 1,
+                brightness: 1,
+                phosphorTint: SIMD3(repeating: 1),
+                monochromeMix: 0
+            )
+        case .glassy:
+            LensPresetProfile(
+                curvature: SIMD2(repeating: 0.055),
+                warpStyle: .radial,
+                scanlineStrength: 0.24,
+                maskStrength: 0.08,
+                maskStyle: .legacyApertureGrille,
+                maskPitch: 1,
+                glowStrength: 0.12,
+                halationStrength: 0,
+                halationRadius: 1,
+                vignetteStrength: 0.26,
+                glassStrength: 1,
+                brightness: 1,
+                phosphorTint: SIMD3(repeating: 1),
+                monochromeMix: 0
+            )
+        case .bulbous:
+            LensPresetProfile(
+                curvature: SIMD2(repeating: 0.11),
+                warpStyle: .radial,
+                scanlineStrength: 0.28,
+                maskStrength: 0.10,
+                maskStyle: .legacyApertureGrille,
+                maskPitch: 1,
+                glowStrength: 0.16,
+                halationStrength: 0,
+                halationRadius: 1,
+                vignetteStrength: 0.42,
+                glassStrength: 1,
+                brightness: 1,
+                phosphorTint: SIMD3(repeating: 1),
+                monochromeMix: 0
+            )
+        case .deepTube:
+            LensPresetProfile(
+                curvature: SIMD2(0.15, 0.19),
+                warpStyle: .axisCubic,
+                scanlineStrength: 0.27,
+                maskStrength: 0.20,
+                maskStyle: .slotMask,
+                maskPitch: 3,
+                glowStrength: 0.15,
+                halationStrength: 0.075,
+                halationRadius: 2.2,
+                vignetteStrength: 0.48,
+                glassStrength: 0.92,
+                brightness: 1.08,
+                phosphorTint: SIMD3(1.03, 0.98, 0.92),
+                monochromeMix: 0
+            )
+        case .rooftopArcade:
+            LensPresetProfile(
+                curvature: SIMD2(0.22, 0.18),
+                warpStyle: .axisCubic,
+                scanlineStrength: 0.34,
+                maskStrength: 0.46,
+                maskStyle: .shadowMask,
+                maskPitch: 3.5,
+                glowStrength: 0.09,
+                halationStrength: 0.035,
+                halationRadius: 1.5,
+                vignetteStrength: 0.60,
+                glassStrength: 0.62,
+                brightness: 1.22,
+                phosphorTint: SIMD3(1.04, 1, 0.96),
+                monochromeMix: 0
+            )
+        case .apertureGrille:
+            LensPresetProfile(
+                curvature: SIMD2(repeating: 0.025),
+                warpStyle: .radial,
+                scanlineStrength: 0.20,
+                maskStrength: 0.30,
+                maskStyle: .apertureGrille,
+                maskPitch: 2.5,
+                glowStrength: 0.10,
+                halationStrength: 0.04,
+                halationRadius: 1.4,
+                vignetteStrength: 0.16,
+                glassStrength: 0.48,
+                brightness: 1.10,
+                phosphorTint: SIMD3(0.98, 1.02, 1.04),
+                monochromeMix: 0
+            )
+        case .amberTerminal:
+            LensPresetProfile(
+                curvature: SIMD2(0.075, 0.10),
+                warpStyle: .axisCubic,
+                scanlineStrength: 0.22,
+                maskStrength: 0.10,
+                maskStyle: .monochrome,
+                maskPitch: 2.8,
+                glowStrength: 0.14,
+                halationStrength: 0.10,
+                halationRadius: 2.6,
+                vignetteStrength: 0.30,
+                glassStrength: 0.68,
+                brightness: 1.08,
+                phosphorTint: SIMD3(1, 0.56, 0.14),
+                monochromeMix: 1
+            )
         }
     }
 
-    public var scanlineStrength: Float {
-        switch self {
-        case .subtle: 0.16
-        case .glassy: 0.24
-        case .bulbous: 0.28
-        }
-    }
-
-    public var maskStrength: Float {
-        switch self {
-        case .subtle: 0.035
-        case .glassy: 0.08
-        case .bulbous: 0.10
-        }
-    }
-
-    public var glowStrength: Float {
-        switch self {
-        case .subtle: 0.06
-        case .glassy: 0.12
-        case .bulbous: 0.16
-        }
-    }
-
-    public var vignetteStrength: Float {
-        switch self {
-        case .subtle: 0.12
-        case .glassy: 0.26
-        case .bulbous: 0.42
-        }
-    }
+    public var curvatureX: Float { profile.curvature.x }
+    public var curvatureY: Float { profile.curvature.y }
+    public var warpStyle: LensWarpStyle { profile.warpStyle }
+    public var scanlineStrength: Float { profile.scanlineStrength }
+    public var maskStrength: Float { profile.maskStrength }
+    public var maskStyle: PhosphorMaskStyle { profile.maskStyle }
+    public var maskPitch: Float { profile.maskPitch }
+    public var glowStrength: Float { profile.glowStrength }
+    public var halationStrength: Float { profile.halationStrength }
+    public var halationRadius: Float { profile.halationRadius }
+    public var vignetteStrength: Float { profile.vignetteStrength }
+    public var glassStrength: Float { profile.glassStrength }
+    public var brightness: Float { profile.brightness }
+    public var phosphorTint: SIMD3<Float> { profile.phosphorTint }
+    public var monochromeMix: Float { profile.monochromeMix }
 }
 
 public struct WindowCandidate: Equatable, Sendable {
@@ -224,11 +362,22 @@ public enum WindowCandidatePolicy {
     ]
 
     public static func isEligible(_ candidate: WindowCandidate, excludingPID: pid_t) -> Bool {
-        candidate.ownerPID != excludingPID
-            && candidate.isOnScreen
+        let hasStableTitle = !candidate.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return candidate.ownerPID != excludingPID
+            && (candidate.isOnScreen || hasStableTitle)
             && candidate.frame.width >= 100
             && candidate.frame.height >= 100
             && !excludedBundleIdentifiers.contains(candidate.bundleIdentifier)
+    }
+}
+
+public enum WindowSelectionReadiness {
+    public static func isReady(
+        isOnScreen: Bool,
+        targetProcessID: pid_t,
+        frontmostProcessID: pid_t?
+    ) -> Bool {
+        isOnScreen && frontmostProcessID == targetProcessID
     }
 }
 
