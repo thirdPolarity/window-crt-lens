@@ -91,19 +91,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appearance.target = self
         menu.addItem(appearance)
 
-        let diagnostics = NSMenu()
-        let markBad = NSMenuItem(title: "Mark Mirror Glitch", action: #selector(markMirrorGlitch), keyEquivalent: "")
-        markBad.target = self
-        diagnostics.addItem(markBad)
-        let markGood = NSMenuItem(title: "Mark Looks Normal", action: #selector(markLooksNormal), keyEquivalent: "")
-        markGood.target = self
-        diagnostics.addItem(markGood)
         let openLogs = NSMenuItem(title: "Open Logs", action: #selector(openDiagnosticLogs), keyEquivalent: "")
         openLogs.target = self
-        diagnostics.addItem(openLogs)
-        let diagnosticsRoot = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
-        diagnosticsRoot.submenu = diagnostics
-        menu.addItem(diagnosticsRoot)
+        menu.addItem(openLogs)
 
         menu.addItem(.separator())
         let note = NSMenuItem(title: "Clicks and typing pass through to the real window", action: nil, keyEquivalent: "")
@@ -255,19 +245,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         targetItem.title = "No window selected"
         stopItem.isEnabled = false
     }
-
-    private func markDiagnosticState(_ state: String) {
-        DiagnosticLog.shared.record("user_marker", ["state": state, "hasLens": lensController != nil,
-            "runningCopies": LensDiagnostics.runningCopies()])
-        lensController?.recordDiagnosticSnapshot(reason: state)
-        DiagnosticLog.shared.flush()
-        if let failure = DiagnosticLog.shared.failureReason {
-            presentMessage(title: "The marker could not be saved", message: "Local logging failed: \(failure)")
-        }
-    }
-
-    @objc private func markMirrorGlitch() { markDiagnosticState("mirror_glitch") }
-    @objc private func markLooksNormal() { markDiagnosticState("looks_normal") }
 
     @objc private func openDiagnosticLogs() {
         DiagnosticLog.shared.flush()

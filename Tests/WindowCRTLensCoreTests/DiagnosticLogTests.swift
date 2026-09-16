@@ -21,17 +21,17 @@ final class DiagnosticLogTests: XCTestCase {
         XCTAssertEqual(permissions, 0o600)
     }
 
-    func testRotationKeepsRecentMarkerAndDoesNotTouchOtherFiles() throws {
+    func testRotationKeepsRecentEventAndDoesNotTouchOtherFiles() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
         let log = DiagnosticLog(directory: folder, maxBytes: 700)
         let unrelated = folder.appendingPathComponent("keep.txt")
         try Data("keep".utf8).write(to: unrelated)
         for i in 0..<50 { log.record("capture", ["index": i]) }
-        log.record("user_marker", ["state": "mirror_glitch"])
+        log.record("capture_stopped", ["reason": "requested"])
         log.flush()
         XCTAssertNil(log.failureReason)
-        XCTAssertTrue(try String(contentsOf: log.fileURL).contains("mirror_glitch"))
+        XCTAssertTrue(try String(contentsOf: log.fileURL).contains("capture_stopped"))
         let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
         XCTAssertEqual(files.count, 3)
         XCTAssertEqual(try String(contentsOf: unrelated), "keep")

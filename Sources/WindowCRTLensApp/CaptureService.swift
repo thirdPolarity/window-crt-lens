@@ -75,9 +75,8 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
 
     func start(windowID: CGWindowID, targetFPS: Int = 60) async throws {
         DiagnosticLog.shared.record("capture_start_requested", ["captureID": diagnosticID, "windowID": windowID])
-        // The picker is closed and our overlay is not yet visible. An onscreen-only
-        // snapshot can omit this app entirely, creating an empty exclusion filter
-        // that feeds the CRT overlay back into its own capture.
+        // Include offscreen windows so this app remains available for exclusion
+        // after the picker closes and before the overlay appears.
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
             throw CaptureError.windowDisappeared
@@ -346,7 +345,7 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
             case .displayUnavailable: "The display containing the selected window is unavailable."
             case .activationFailed: "macOS could not bring the selected application forward."
             case .windowDidNotBecomeVisible: "The selected window did not become visible. Restore it from the Dock and choose it again."
-            case .selfExclusionUnavailable: "macOS could not exclude the CRT lens from capture. The lens was stopped to prevent a mirror loop. Choose the window again."
+            case .selfExclusionUnavailable: "The lens couldn't start for this window. Choose the window again."
             }
         }
     }

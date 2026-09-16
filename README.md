@@ -4,7 +4,7 @@ Curved glass, phosphor, and glow for the Mac apps you already use. Free and open
 
 I miss the screen as much as the shows and games. CRT Lens puts an ordinary Mac window behind rounded glass, with the texture and depth I remember from old televisions. I use it for watching Dragon Ball Z, playing retro games, and seeing familiar things through a different screen.
 
-[**Download for Mac**](https://github.com/thirdPolarity/window-crt-lens/releases/tag/v0.1.0-preview.2) · [Build from source](#build-from-source)
+[**Download for Mac**](https://github.com/thirdPolarity/window-crt-lens/releases/tag/v0.1.0-preview.3) · [Build from source](#build-from-source)
 
 ![CRT Lens over an Infuse window playing Dragon Ball Z, with the desktop visible around the curved glass](docs/images/crt-lens-desktop.webp)
 
