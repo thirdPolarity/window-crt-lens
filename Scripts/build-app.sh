@@ -6,12 +6,12 @@ CACHE_ROOT="/private/tmp/window-crt-lens-build"
 APP="$CACHE_ROOT/output/Window CRT Lens.app"
 ARCHIVE="$ROOT/dist/Window CRT Lens.app.zip"
 
-mkdir -p "$CACHE_ROOT/home" "$CACHE_ROOT/clang" "$CACHE_ROOT/swiftpm" "$CACHE_ROOT/cache" "$CACHE_ROOT/config" "$CACHE_ROOT/security"
+mkdir -p "$CACHE_ROOT/clang" "$CACHE_ROOT/swiftpm" "$CACHE_ROOT/cache" "$CACHE_ROOT/config" "$CACHE_ROOT/security"
 
-HOME="$CACHE_ROOT/home" \
 CLANG_MODULE_CACHE_PATH="$CACHE_ROOT/clang" \
 SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/swiftpm" \
 swift build \
+    --package-path "$ROOT" \
     --disable-sandbox \
     --cache-path "$CACHE_ROOT/cache" \
     --config-path "$CACHE_ROOT/config" \
@@ -19,7 +19,7 @@ swift build \
     -c release \
     --product WindowCRTLens
 
-BIN_PATH=$(HOME="$CACHE_ROOT/home" CLANG_MODULE_CACHE_PATH="$CACHE_ROOT/clang" SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/swiftpm" swift build --disable-sandbox --cache-path "$CACHE_ROOT/cache" --config-path "$CACHE_ROOT/config" --security-path "$CACHE_ROOT/security" -c release --show-bin-path)
+BIN_PATH=$(CLANG_MODULE_CACHE_PATH="$CACHE_ROOT/clang" SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/swiftpm" swift build --package-path "$ROOT" --disable-sandbox --cache-path "$CACHE_ROOT/cache" --config-path "$CACHE_ROOT/config" --security-path "$CACHE_ROOT/security" -c release --show-bin-path)
 
 rm -rf "$CACHE_ROOT/output"
 mkdir -p "$APP/Contents/MacOS"

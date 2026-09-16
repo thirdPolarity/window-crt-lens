@@ -9,7 +9,10 @@ final class LensController {
         didSet { renderer.preset = preset }
     }
     var appearance: LensAppearance {
-        didSet { renderer.appearance = appearance }
+        didSet {
+            renderer.appearance = appearance
+            recordDiagnosticSnapshot(reason: "appearance_changed")
+        }
     }
 
     private let targetWindowID: CGWindowID
@@ -23,6 +26,7 @@ final class LensController {
     private var captureUpdateTask: Task<Void, Never>?
     private var lastQuartzFrame: CGRect
     private var captureGeometryFrame: CGRect
+    private var diagnosticVisibility = "initial"
 
     init(window: SCWindow, preset: LensPreset, appearance: LensAppearance) throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -69,6 +73,7 @@ final class LensController {
         self.renderer = renderer
         self.overlayWindow = overlayWindow
         self.captureService = captureService
+        recordDiagnosticSnapshot(reason: "lens_created")
     }
 
     func start() async throws {
@@ -80,6 +85,7 @@ final class LensController {
     }
 
     func stop() {
+        recordDiagnosticSnapshot(reason: "lens_stop")
         trackingTimer?.invalidate()
         trackingTimer = nil
         captureUpdateTask?.cancel()
@@ -88,18 +94,42 @@ final class LensController {
         overlayWindow.orderOut(nil)
     }
 
+    func recordDiagnosticSnapshot(reason: String) {
+        DiagnosticLog.shared.record("lens_snapshot", [
+            "captureID": captureService.diagnosticID, "reason": reason,
+            "targetWindowID": targetWindowID, "targetPID": targetProcessID ?? -1,
+            "overlayWindowID": overlayWindow.windowNumber, "overlayVisible": overlayWindow.isVisible,
+            "frontmostPID": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1,
+            "targetFrame": LensDiagnostics.rect(lastQuartzFrame),
+            "captureFrame": LensDiagnostics.rect(captureGeometryFrame),
+            "overlayFrame": LensDiagnostics.rect(overlayWindow.frame),
+            "preset": preset.rawValue, "zoom": appearance.zoom,
+            "screenRadius": appearance.screenCornerRadius, "shellRadius": appearance.shellCornerRadius,
+            "edgeSoftness": appearance.edgeSoftness,
+        ])
+        captureService.recordDiagnosticSnapshot(reason: reason)
+    }
+
+    private func recordVisibility(_ reason: String) {
+        guard diagnosticVisibility != reason else { return }
+        diagnosticVisibility = reason
+        recordDiagnosticSnapshot(reason: reason)
+    }
+
     private func trackTargetWindow() {
         let list = CGWindowListCopyWindowInfo(.optionIncludingWindow, targetWindowID) as? [[String: Any]] ?? []
         guard let info = list.first,
               let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
               let x = bounds["X"], let y = bounds["Y"],
               let width = bounds["Width"], let height = bounds["Height"] else {
+            recordVisibility("target_missing")
             overlayWindow.orderOut(nil)
             return
         }
 
         let isOnScreen = (info[kCGWindowIsOnscreen as String] as? Bool) ?? true
         guard isOnScreen else {
+            recordVisibility("target_offscreen")
             overlayWindow.orderOut(nil)
             return
         }
@@ -110,12 +140,15 @@ final class LensController {
                ownProcessID: ownProcessID,
                frontmostProcessID: NSWorkspace.shared.frontmostApplication?.processIdentifier
            ) {
+            recordVisibility("other_app_foreground")
             overlayWindow.orderOut(nil)
             return
         }
 
         let quartzFrame = CGRect(x: x, y: y, width: width, height: height)
         if quartzFrame != lastQuartzFrame {
+            DiagnosticLog.shared.record("target_geometry_changed", ["captureID": captureService.diagnosticID,
+                "frame": LensDiagnostics.rect(quartzFrame)])
             lastQuartzFrame = quartzFrame
             let primaryHeight = CGDisplayBounds(CGMainDisplayID()).height
             let appKitFrame = WindowCoordinateMapper.appKitFrame(for: quartzFrame, primaryDisplayHeight: primaryHeight)
@@ -132,6 +165,7 @@ final class LensController {
                 } catch is CancellationError {
                     return
                 } catch {
+                    DiagnosticLog.shared.record("geometry_update_failed", LensDiagnostics.error(error))
                     NSLog("[Window CRT Lens] capture geometry update failed: %@", error.localizedDescription)
                 }
             }
@@ -141,10 +175,12 @@ final class LensController {
             captureFrame: captureGeometryFrame,
             targetFrame: quartzFrame
         ) else {
+            recordVisibility("waiting_for_geometry")
             overlayWindow.orderOut(nil)
             return
         }
         overlayWindow.orderFrontRegardless()
+        recordVisibility("overlay_visible")
     }
 
     enum LensError: LocalizedError {

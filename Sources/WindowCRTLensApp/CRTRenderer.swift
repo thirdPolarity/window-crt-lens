@@ -39,6 +39,8 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
     private let sampler: MTLSamplerState
     private let textureLock = NSLock()
     private var sourceFrame: MetalSourceFrame?
+    private var reportedFirstGPUCompletion = false
+    private var reportedGPUError = false
     private let startedAt = ProcessInfo.processInfo.systemUptime
 
     init(device: MTLDevice, pixelFormat: MTLPixelFormat) throws {
@@ -74,6 +76,7 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         }
         self.sampler = sampler
         super.init()
+        DiagnosticLog.shared.record("renderer_created", ["device": device.name])
     }
 
     func update(frame: MetalSourceFrame) {
@@ -132,14 +135,30 @@ final class CRTRenderer: NSObject, MTKViewDelegate {
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<LensUniforms>.stride, index: 0)
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
-        commandBuffer.addCompletedHandler { [frame] _ in
+        commandBuffer.addCompletedHandler { [frame, weak self] buffer in
             withExtendedLifetime(frame.lifetimeAnchor) {}
+            guard let self else { return }
+            textureLock.lock()
+            let first = !reportedFirstGPUCompletion
+            let firstError = buffer.error != nil && !reportedGPUError
+            reportedFirstGPUCompletion = true
+            if firstError { reportedGPUError = true }
+            textureLock.unlock()
+            if first || firstError {
+                DiagnosticLog.shared.record("renderer_gpu_completion", [
+                    "status": buffer.status.rawValue, "first": first,
+                    "error": buffer.error.map { LensDiagnostics.error($0) } ?? [:],
+                    "sourceWidth": frame.texture.width, "sourceHeight": frame.texture.height,
+                ])
+            }
         }
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
 
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        DiagnosticLog.shared.record("renderer_size_changed", ["width": size.width, "height": size.height])
+    }
 
     enum RendererError: LocalizedError {
         case commandQueueUnavailable

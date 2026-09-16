@@ -16,21 +16,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var stopItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DiagnosticLog.shared.record("app_launch", [
+            "parentPID": getppid(),
+            "bundlePath": Bundle.main.bundlePath,
+            "executablePath": Bundle.main.executablePath ?? "unknown",
+            "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "development",
+            "os": ProcessInfo.processInfo.operatingSystemVersionString,
+            "screenCapturePermission": CGPreflightScreenCaptureAccess(),
+            "runningCopies": LensDiagnostics.runningCopies(),
+        ])
         appearance = appearanceStore.load()
         buildStatusMenu()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            DiagnosticLog.shared.record("picker_trigger", ["source": "launch"])
             self?.chooseWindow()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         lensController?.stop()
+        DiagnosticLog.shared.record("app_terminate")
+        DiagnosticLog.shared.flush()
     }
 
     func applicationShouldHandleReopen(
         _ sender: NSApplication,
         hasVisibleWindows flag: Bool
     ) -> Bool {
+        DiagnosticLog.shared.record("app_reopen", ["hasVisibleWindows": flag])
         DispatchQueue.main.async { [weak self] in
             self?.chooseWindow()
         }
@@ -78,6 +91,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appearance.target = self
         menu.addItem(appearance)
 
+        let diagnostics = NSMenu()
+        let markBad = NSMenuItem(title: "Mark Mirror Glitch", action: #selector(markMirrorGlitch), keyEquivalent: "")
+        markBad.target = self
+        diagnostics.addItem(markBad)
+        let markGood = NSMenuItem(title: "Mark Looks Normal", action: #selector(markLooksNormal), keyEquivalent: "")
+        markGood.target = self
+        diagnostics.addItem(markGood)
+        let openLogs = NSMenuItem(title: "Open Logs", action: #selector(openDiagnosticLogs), keyEquivalent: "")
+        openLogs.target = self
+        diagnostics.addItem(openLogs)
+        let diagnosticsRoot = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
+        diagnosticsRoot.submenu = diagnostics
+        menu.addItem(diagnosticsRoot)
+
         menu.addItem(.separator())
         let note = NSMenuItem(title: "Clicks and typing pass through to the real window", action: nil, keyEquivalent: "")
         note.isEnabled = false
@@ -90,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func chooseWindow() {
+        DiagnosticLog.shared.record("picker_requested", ["permission": CGPreflightScreenCaptureAccess()])
         if !CGPreflightScreenCaptureAccess() {
             guard CGRequestScreenCaptureAccess() else {
                 presentScreenRecordingPermissionMessage()
@@ -100,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task {
             do {
                 let windows = try await CaptureService.listEligibleWindows()
+                DiagnosticLog.shared.record("picker_ready", ["eligibleWindowCount": windows.count])
                 await presentPicker(windows: windows)
             } catch {
                 await presentCaptureError(error)
@@ -132,13 +161,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Start Lens")
         alert.addButton(withTitle: "Cancel")
 
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            DiagnosticLog.shared.record("picker_cancelled")
+            return
+        }
         let index = max(0, popup.indexOfSelectedItem)
         guard windows.indices.contains(index) else { return }
         await startLens(for: windows[index])
     }
 
     private func startLens(for window: SCWindow) async {
+        DiagnosticLog.shared.record("target_selected", [
+            "windowID": window.windowID,
+            "targetPID": window.owningApplication?.processID ?? -1,
+            "targetBundleID": window.owningApplication?.bundleIdentifier ?? "unknown",
+            "onScreen": window.isOnScreen, "frame": LensDiagnostics.rect(window.frame),
+            "runningCopies": LensDiagnostics.runningCopies(),
+        ])
         lensController?.stop()
         do {
             let readyWindow = try await activateAndResolve(window)
@@ -156,6 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             stopItem.isEnabled = true
 
         } catch {
+            DiagnosticLog.shared.record("lens_start_failed", LensDiagnostics.error(error))
             presentMessage(title: "The lens could not start", message: error.localizedDescription)
         }
     }
@@ -177,6 +217,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    targetProcessID: pid,
                    frontmostProcessID: NSWorkspace.shared.frontmostApplication?.processIdentifier
                ) {
+                DiagnosticLog.shared.record("target_ready", ["attempt": attempt, "windowID": window.windowID,
+                    "frame": LensDiagnostics.rect(visibleWindow.frame)])
                 return visibleWindow
             }
         }
@@ -188,6 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let raw = sender.representedObject as? String,
               let preset = LensPreset(rawValue: raw) else { return }
         selectedPreset = preset
+        DiagnosticLog.shared.record("preset_changed", ["preset": preset.rawValue])
         lensController?.preset = preset
         for (candidate, item) in presetItems {
             item.state = candidate == preset ? .on : .off
@@ -213,7 +256,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopItem.isEnabled = false
     }
 
+    private func markDiagnosticState(_ state: String) {
+        DiagnosticLog.shared.record("user_marker", ["state": state, "hasLens": lensController != nil,
+            "runningCopies": LensDiagnostics.runningCopies()])
+        lensController?.recordDiagnosticSnapshot(reason: state)
+        DiagnosticLog.shared.flush()
+        if let failure = DiagnosticLog.shared.failureReason {
+            presentMessage(title: "The marker could not be saved", message: "Local logging failed: \(failure)")
+        }
+    }
+
+    @objc private func markMirrorGlitch() { markDiagnosticState("mirror_glitch") }
+    @objc private func markLooksNormal() { markDiagnosticState("looks_normal") }
+
+    @objc private func openDiagnosticLogs() {
+        DiagnosticLog.shared.flush()
+        NSWorkspace.shared.open(DiagnosticLog.shared.directory)
+    }
+
     private func presentCaptureError(_ error: Error) async {
+        DiagnosticLog.shared.record("capture_error", LensDiagnostics.error(error))
         let alert = NSAlert()
         alert.messageText = "Screen Recording access is required"
         alert.informativeText = "Window CRT Lens only reads the onscreen rectangle occupied by the window you select. It does not record or save anything.\n\n\(error.localizedDescription)"

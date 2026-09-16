@@ -7,6 +7,7 @@ import WindowCRTLensCore
 
 final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
     var onFrame: ((MetalSourceFrame) -> Void)?
+    let diagnosticID = UUID().uuidString
 
     private let device: MTLDevice
     private var textureCache: CVMetalTextureCache?
@@ -24,6 +25,14 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
     private var idleFrameCount = 0
     private var otherStatusCount = 0
     private var deliveredTextureCount = 0
+    private var lastFrameUptime: TimeInterval?
+    private var lastTextureUptime: TimeInterval?
+    private var latestWidth = 0
+    private var latestHeight = 0
+    private var latestStatus = -1
+    private var statusCounts: [String: Int] = [:]
+    private var textureFailureCount = 0
+    private var latestTextureError = 0
 
     init(device: MTLDevice) {
         self.device = device
@@ -65,7 +74,11 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
     }
 
     func start(windowID: CGWindowID, targetFPS: Int = 60) async throws {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        DiagnosticLog.shared.record("capture_start_requested", ["captureID": diagnosticID, "windowID": windowID])
+        // The picker is closed and our overlay is not yet visible. An onscreen-only
+        // snapshot can omit this app entirely, creating an empty exclusion filter
+        // that feeds the CRT overlay back into its own capture.
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
             throw CaptureError.windowDisappeared
         }
@@ -82,6 +95,21 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
         )
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let excludedApplications = content.applications.filter { $0.processID == ownPID }
+        guard !excludedApplications.isEmpty else {
+            DiagnosticLog.shared.record("capture_blocked_missing_self_exclusion", ["captureID": diagnosticID, "ownPID": ownPID])
+            throw CaptureError.selfExclusionUnavailable
+        }
+        DiagnosticLog.shared.record("capture_filter_created", [
+            "captureID": diagnosticID, "ownPID": ownPID,
+            "excludedPIDs": excludedApplications.map(\.processID),
+            "selfExcluded": excludedApplications.contains { $0.processID == ownPID },
+            "ownWindowsInSnapshot": content.windows.filter { $0.owningApplication?.processID == ownPID }.map(\.windowID),
+            "displayID": display.displayID, "displayFrame": LensDiagnostics.rect(display.frame),
+            "targetFrame": LensDiagnostics.rect(window.frame),
+            "sourceRect": LensDiagnostics.rect(configuration.sourceRect),
+            "width": configuration.width, "height": configuration.height, "scale": scale,
+            "displayCount": content.displays.count, "mode": "display_excluding_applications",
+        ])
         let filter = SCContentFilter(
             display: display,
             excludingApplications: excludedApplications,
@@ -95,6 +123,7 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
         self.excludedApplications = excludedApplications
         self.captureDisplay = display
         self.targetFPS = targetFPS
+        DiagnosticLog.shared.record("capture_started", ["captureID": diagnosticID])
         startDiagnostics()
     }
 
@@ -110,6 +139,11 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
             targetFPS: targetFPS
         )
 
+        DiagnosticLog.shared.record("capture_update_requested", ["captureID": diagnosticID,
+            "displayID": display.displayID, "previousDisplayID": captureDisplay?.displayID ?? 0,
+            "targetFrame": LensDiagnostics.rect(windowFrame), "sourceRect": LensDiagnostics.rect(configuration.sourceRect),
+            "width": configuration.width, "height": configuration.height, "taskCancelled": Task.isCancelled])
+
         if captureDisplay?.displayID != display.displayID {
             let filter = SCContentFilter(
                 display: display,
@@ -120,10 +154,13 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
             captureDisplay = display
         }
         try await stream.updateConfiguration(configuration)
+        DiagnosticLog.shared.record("capture_update_completed", ["captureID": diagnosticID,
+            "targetFrame": LensDiagnostics.rect(windowFrame), "taskCancelled": Task.isCancelled])
     }
 
     func stop() {
         guard let stream else { return }
+        recordDiagnosticSnapshot(reason: "capture_stop")
         self.stream = nil
         diagnosticsTimer?.cancel()
         diagnosticsTimer = nil
@@ -159,15 +196,30 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
         )
         guard result == kCVReturnSuccess,
               let cvTexture,
-              let texture = CVMetalTextureGetTexture(cvTexture) else { return }
+              let texture = CVMetalTextureGetTexture(cvTexture) else {
+            diagnosticsLock.lock()
+            textureFailureCount += 1
+            latestTextureError = Int(result)
+            diagnosticsLock.unlock()
+            return
+        }
 
         diagnosticsLock.lock()
         deliveredTextureCount += 1
+        lastTextureUptime = ProcessInfo.processInfo.systemUptime
+        let isFirstTexture = deliveredTextureCount == 1
         diagnosticsLock.unlock()
+        if isFirstTexture {
+            DiagnosticLog.shared.record("first_texture", ["captureID": diagnosticID, "width": width, "height": height])
+        }
         onFrame?(MetalSourceFrame(texture: texture, lifetimeAnchor: cvTexture))
     }
 
     func stream(_ stream: SCStream, didStopWithError error: Error) {
+        var details = LensDiagnostics.error(error)
+        details["captureID"] = diagnosticID
+        DiagnosticLog.shared.record("capture_stopped_with_error", details)
+        recordDiagnosticSnapshot(reason: "stream_error")
         NSLog("[Window CRT Lens] capture stopped: %@", error.localizedDescription)
     }
 
@@ -184,6 +236,13 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
         }
 
         diagnosticsLock.lock()
+        lastFrameUptime = ProcessInfo.processInfo.systemUptime
+        latestStatus = status?.rawValue ?? -1
+        statusCounts[String(latestStatus), default: 0] += 1
+        if let image = sampleBuffer.imageBuffer {
+            latestWidth = CVPixelBufferGetWidth(image)
+            latestHeight = CVPixelBufferGetHeight(image)
+        }
         receivedFrameCount += 1
         if sampleBuffer.isValid { validFrameCount += 1 }
         if sampleBuffer.imageBuffer != nil { imageBufferCount += 1 }
@@ -200,33 +259,31 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
 
     private func startDiagnostics() {
         diagnosticsTimer?.cancel()
-        guard ProcessInfo.processInfo.environment["WINDOW_CRT_DIAGNOSTICS"] == "1" else { return }
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
-        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.schedule(deadline: .now() + 1, repeating: 5)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            diagnosticsLock.lock()
-            let received = receivedFrameCount
-            let valid = validFrameCount
-            let imageBuffers = imageBufferCount
-            let complete = completeFrameCount
-            let idle = idleFrameCount
-            let other = otherStatusCount
-            let textures = deliveredTextureCount
-            diagnosticsLock.unlock()
-            NSLog(
-                "[Window CRT Lens] frames received=%d valid=%d imageBuffers=%d complete=%d idle=%d other=%d textures=%d",
-                received,
-                valid,
-                imageBuffers,
-                complete,
-                idle,
-                other,
-                textures
-            )
+            recordDiagnosticSnapshot(reason: "heartbeat")
         }
         diagnosticsTimer = timer
         timer.resume()
+    }
+
+    func recordDiagnosticSnapshot(reason: String) {
+        diagnosticsLock.lock()
+        let now = ProcessInfo.processInfo.systemUptime
+        let details: [String: Any] = [
+            "captureID": diagnosticID, "reason": reason,
+            "received": receivedFrameCount, "valid": validFrameCount, "imageBuffers": imageBufferCount,
+            "complete": completeFrameCount, "idle": idleFrameCount, "otherStatus": otherStatusCount,
+            "textures": deliveredTextureCount, "textureFailures": textureFailureCount,
+            "lastTextureError": latestTextureError, "lastStatus": latestStatus, "statusCounts": statusCounts,
+            "width": latestWidth, "height": latestHeight,
+            "secondsSinceFrame": lastFrameUptime.map { now - $0 } ?? -1,
+            "secondsSinceTexture": lastTextureUptime.map { now - $0 } ?? -1,
+        ]
+        diagnosticsLock.unlock()
+        DiagnosticLog.shared.record("capture_health", details)
     }
 
     private static func preferredDisplay(for windowFrame: CGRect, in displays: [SCDisplay]) -> SCDisplay? {
@@ -281,6 +338,7 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
         case displayUnavailable
         case activationFailed
         case windowDidNotBecomeVisible
+        case selfExclusionUnavailable
 
         var errorDescription: String? {
             switch self {
@@ -288,6 +346,7 @@ final class CaptureService: NSObject, SCStreamOutput, SCStreamDelegate {
             case .displayUnavailable: "The display containing the selected window is unavailable."
             case .activationFailed: "macOS could not bring the selected application forward."
             case .windowDidNotBecomeVisible: "The selected window did not become visible. Restore it from the Dock and choose it again."
+            case .selfExclusionUnavailable: "macOS could not exclude the CRT lens from capture. The lens was stopped to prevent a mirror loop. Choose the window again."
             }
         }
     }
