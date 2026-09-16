@@ -22,9 +22,10 @@ swift build \
 BIN_PATH=$(CLANG_MODULE_CACHE_PATH="$CACHE_ROOT/clang" SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/swiftpm" swift build --package-path "$ROOT" --disable-sandbox --cache-path "$CACHE_ROOT/cache" --config-path "$CACHE_ROOT/config" --security-path "$CACHE_ROOT/security" -c release --show-bin-path)
 
 rm -rf "$CACHE_ROOT/output"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH/WindowCRTLens" "$APP/Contents/MacOS/WindowCRTLens"
 cp "$ROOT/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE.txt"
 xattr -cr "$APP"
 codesign \
     --force \
