@@ -27,15 +27,13 @@ Seven looks range from subtle curves to bulbous consumer tubes, arcade glass, an
 
 ShaderGlass and Mega Bezel helped shape the idea. My own preference is for rounded corners and a picture with a little volume. Turning up the geometry in Pokémon Silver made familiar paths and buildings feel closer to the place I imagined as a child.
 
-## Privacy and troubleshooting
+## Privacy and compatibility
 
 Screen capture is processed on your Mac. CRT Lens does not save video or send screen content anywhere.
 
 Diagnostic logs stay in `~/Library/Logs/Window CRT Lens/`. They contain app paths and identifiers, window geometry, performance information, and errors, but no screen images, window titles, or typed text. Logs rotate automatically and are never uploaded. Review them before sharing.
 
-- **No windows in the picker:** quit and reopen CRT Lens after granting Screen Recording permission, with the target window visible.
-- **A repeating or mirrored picture:** choose **◉ → Diagnostics → Mark Mirror Glitch**, then **Stop Lens**. Quit any duplicate copies of CRT Lens before restarting.
-- **Missing or obscured video:** keep the source window visible. Protected video may not be capturable.
+Keep the source window visible. macOS may prevent capture of protected video.
 
 The download has been tested on Apple silicon. Intel Macs and multi-display setups have not been tested.
 

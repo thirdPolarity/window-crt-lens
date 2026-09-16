@@ -4,6 +4,7 @@ Before publishing or updating the README, release notes, repository description,
 
 - Read every changed public sentence from the visitor's perspective.
 - Keep agent handoffs, approval history, owner-confirmation language, unresolved decisions, and internal test reports out of public copy.
+- Do not turn one-off debugging sessions, resolved bugs, or diagnostic marker commands into advertised features or troubleshooting guidance.
 - Keep useful installation steps, compatibility limits, privacy information, and credits.
 - Verify license wording against LICENSE. This project is MIT licensed.
 - Run the interface-copy-firewall scan and manually review the text before pushing; a clean automated scan alone is not sufficient.
